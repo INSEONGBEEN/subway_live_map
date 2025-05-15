@@ -3,15 +3,104 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>서울 지하철 실시간 지도</title>
+    <title>실시간 서울 지하철 지도</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 0; }
         #map { height: 100vh; width: 100vw; }
+        .legend {
+            background: white;
+            padding: 10px;
+            line-height: 1.5em;
+        }
+        .legend span {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 5px;
+        }
     </style>
 </head>
 <body>
-    <div id="map">
-        {{ folium_map|safe }}
-    </div>
+    <div id="map"></div>
+    <script>
+        const map = L.map('map').setView([37.5665, 126.9780], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const lineColors = {
+            "1호선": "#0052A4", "2호선": "#009D3E", "3호선": "#EF7C1C",
+            "4호선": "#00A5DE", "5호선": "#996CAC", "6호선": "#CD7C2F",
+            "7호선": "#747F00", "8호선": "#E6186C"
+        };
+
+        const iconColors = {
+            "1호선": "blue", "2호선": "green", "3호선": "orange",
+            "4호선": "lightblue", "5호선": "purple", "6호선": "darkred",
+            "7호선": "cadetblue", "8호선": "pink"
+        };
+
+        const trainMarkers = {};
+
+        function updateTrains() {
+            fetch('/api/trains')
+                .then(res => res.json())
+                .then(data => {
+                    for (let key in trainMarkers) {
+                        map.removeLayer(trainMarkers[key]);
+                    }
+
+                    data.forEach(train => {
+                        const key = train.trainNo;
+                        const color = iconColors[train.line] || "gray";
+                        const icon = L.divIcon({
+                            html: `<i class="fas fa-train" style="color:white;"></i>`,
+                            className: `train-icon-${train.line}`,
+                            iconSize: [20, 20]
+                        });
+
+                        const marker = L.marker([train.lat, train.lon], { icon: icon })
+                            .bindPopup(`<b>${train.line}</b><br>🚆${train.trainNo}<br>${train.station}<br>→ ${train.dest}`);
+                        marker.addTo(map);
+                        trainMarkers[key] = marker;
+                    });
+                });
+        }
+
+        fetch('/api/stations')
+            .then(res => res.json())
+            .then(data => {
+                const grouped = {};
+                data.forEach(st => {
+                    if (!grouped[st.호선명]) grouped[st.호선명] = [];
+                    grouped[st.호선명].push(st);
+                });
+
+                Object.keys(grouped).forEach(line => {
+                    const color = lineColors[line] || "#888";
+                    const coords = grouped[line]
+                        .sort((a, b) => a['고유역번호(외부역코드)'] - b['고유역번호(외부역코드)'])
+                        .map(st => [st.위도, st.경도]);
+
+                    coords.forEach(st => {
+                        L.circleMarker(st, {
+                            radius: 4,
+                            color: color,
+                            fillColor: color,
+                            fillOpacity: 0.8
+                        }).addTo(map);
+                    });
+
+                    if (coords.length > 1) {
+                        L.polyline(coords, { color: color, weight: 3, opacity: 0.5 }).addTo(map);
+                    }
+                });
+
+                updateTrains();
+                setInterval(updateTrains, 10000); // 10초마다 갱신
+            });
+    </script>
 </body>
 </html>
