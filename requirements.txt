@@ -1,5 +1,6 @@
-flask
-requests
-folium
-pandas
-python-dotenv
+flask>=2.0
+requests>=2.25
+folium>=0.14
+pandas>=1.3
+python-dotenv>=1.0
+gunicorn>=20.0
