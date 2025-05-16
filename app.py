@@ -2,6 +2,10 @@ from flask import Flask, render_template, jsonify
 import pandas as pd
 import requests
 import xml.etree.ElementTree as ET
+import os  # ✅ 추가
+from dotenv import load_dotenv  # ✅ 로컬 개발 시 사용
+
+load_dotenv()  # ✅ .env 파일에서 환경변수 로드 (로컬 실행용)
 
 app = Flask(__name__)
 
@@ -23,7 +27,11 @@ def get_stations():
 def get_trains():
     import urllib.parse
 
-    API_KEY = '544a595858646c7338337545527652'
+    # ✅ 환경변수에서 API 키 불러오기
+    API_KEY = os.getenv("SEOUL_SUBWAY_API_KEY")
+    if not API_KEY:
+        return jsonify({"error": "API key not found"}), 500
+
     df = pd.read_csv('./data/station.csv', encoding='cp949')
     df['호선명'] = df['호선'].astype(str).str.strip() + '호선'
     station_coords = {row['역명']: (row['위도'], row['경도']) for _, row in df.iterrows()}
@@ -36,7 +44,6 @@ def get_trains():
             res = requests.get(url)
             res.encoding = 'utf-8'
 
-            # 응답이 XML이 아니면 스킵
             if not res.text.strip().startswith("<?xml"):
                 print(f"[응답 오류] {line}: {res.text[:100]}")
                 continue
@@ -61,5 +68,6 @@ def get_trains():
             print(f"[ERROR] {line}: {e}")
 
     return jsonify(results)
+
 if __name__ == '__main__':
     app.run(debug=True)
